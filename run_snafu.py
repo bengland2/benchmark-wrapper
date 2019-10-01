@@ -64,7 +64,8 @@ def main():
             logger.warn("Elasticsearch connection failed or passed incorrectly, turning off indexing")
             index_args.index_results = False
     
-    if index_args.index_results:
+    try:
+      if index_args.index_results:
         #call py es bulk using a process generator to feed it ES documents
         res_beg, res_end, res_suc, res_dup, res_fail, res_retry  = streaming_bulk(es, process_generator(index_args, parser))
                
@@ -76,14 +77,16 @@ def main():
         start_t = time.strftime('%Y-%m-%dT%H:%M:%SGMT', time.gmtime(res_beg))
         end_t = time.strftime('%Y-%m-%dT%H:%M:%SGMT', time.gmtime(res_end))
 
-    else:
+      else:
         start_t = time.strftime('%Y-%m-%dT%H:%M:%SGMT', time.gmtime())
         #need to loop through generator and pass on all yields
         #this will execute all jobs without elasticsearch
         for i in process_generator(index_args, parser):
             pass
         end_t = time.strftime('%Y-%m-%dT%H:%M:%SGMT', time.gmtime())
-
+    except Exception as e:
+      logger.exception(e)
+      end_t = time.strftime('%Y-%m-%dT%H:%M:%SGMT', time.gmtime())
     
     start_t = datetime.datetime.strptime(start_t, FMT)
     end_t = datetime.datetime.strptime(end_t, FMT)
@@ -91,7 +94,7 @@ def main():
     #get time delta for indexing run
     tdelta = end_t - start_t
     logger.info("Duration of execution - %s" % tdelta)
-
+    logging.shutdown()
 
 
 def process_generator(index_args, parser):
