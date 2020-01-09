@@ -4,15 +4,12 @@ set -x
 
 source ci/common.sh
 
-# Build image for ci
-podman build --tag=quay.io/cloud-bulldozer/iperf:snafu_ci -f iperf/Dockerfile . && podman push quay.io/cloud-bulldozer/iperf:snafu_ci
+update_benchmark_image iperf iperf3
 
 cd ripsaw
 
-sed -i 's/iperf:latest/iperf:snafu_ci/g' roles/iperf3-bench/templates/*
-
 # Build new ripsaw image
-update_operator_image snafu_ci
+update_operator_image iperf3 "`echo roles/iperf3-bench/templates/*.yml.j2`"
 
 # iperf does not utilize a wrapper from snafu, only the Dockerfile
 # We will confirm that the test_iperf passes only

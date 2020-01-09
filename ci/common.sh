@@ -6,6 +6,9 @@ image_account=${RIPSAW_CI_IMAGE_ACCOUNT:-rht_perf_ci}
 if [ "$USER" != "root" ] ; then
   SUDO=sudo
 fi
+# we'll try podman push more than once in case of 
+# intermittent network or server problem
+img_try_limit=2
 
 # process exit statuses
 OK=0
@@ -23,47 +26,75 @@ function update_benchmark_image() {
 
   image_spec=quay.io/$image_account/$tool:$tag_name
 
-  # make sure the pre-existing image is removed.  That way,
-  # if the image update fails and somehow isn't reflected in status code,
-  # CI test will still fail
+  # don't trust that the CI installed the tools
 
-  skopeo inspect docker://$image_spec
-  if [ $? = $OK ] ; then 
-    skopeo delete docker://$image_spec || exit $NOTOK
-  fi
+  $SUDO yum install -y skopeo podman buildah
 
-  # rebuild the image, tag it and push it, 
+  # rebuild the image, tag it, 
   # return failure status if any of these don't work
-  ($SUDO buildah build-using-dockerfile -f $wrapper_dir . 2>&1 | tee /tmp/buildah-bud.$$.log && \
+  ($SUDO buildah build-using-dockerfile -f $wrapper_dir . 2>&1 \
+         | tee /tmp/buildah-bud.$$.log && \
    image_id=`tail -n 1 /tmp/buildah-bud.$$.log` && \
-   $SUDO podman tag $image_id $image_spec && \
-   $SUDO podman push $image_spec) \
-       || exit $NOTOK
-}
-
-function update_operator_image() {
-  tag_name=$1
-  sed -i "s|          image: quay.io/benchmark-operator/benchmark-operator:master*|          image:
-  quay.io/$image_account/benchmark-operator:$tag_name # |" resources/operator.yaml
-  $SUDO operator-sdk build quay.io/$image_account/benchmark-operator:$tag_name --image-builder podman || \
-    exit $NOTOK
-
-  # In case we have issues uploading to quay we will retry a few times
+   $SUDO podman tag $image_id $image_spec) \
+     || exit $NOTOK
   try_count=0
-  while [ $try_count -le 2 ]
+  while [ $try_count -le $img_try_limit ] 
   do
-    $SUDO podman push quay.io/$image_account/benchmark-operator:$tag_name
+    $SUDO podman push $image_spec
     s=$?
     if [ $s = $OK ] ; then
         break
     fi
     ((try_count++))
   done
-  if [ $try_count -gt 2 -a $s != $OK ]
-  then
-    echo "Could not upload image to repository. Exiting"
+  if [ $s != $OK ] ; then
+    # ensure that the test fails unless push succeeds
+    skopeo delete docker://$image_spec || exit $NOTOK
+    echo "ERROR: Could not upload image $image_spec to repository. Exiting"
     exit $NOTOK
   fi
+  skopeo inspect docker://$image_spec
+}
+
+function update_operator_image() {
+  tool_name=$1
+  ripsaw_files=$2
+  tag_name=${3:-snafu_ci}
+  image_spec="quay.io/$image_account/benchmark-operator:$tag_name"
+  sed -i "s|          image: quay.io/benchmark-operator/benchmark-operator:master*|          image: quay.io/$image_account/benchmark-operator:$tag_name # |" resources/operator.yaml
+  grep $image_account resources/operator.yaml || exit $NOTOK
+
+  for f in $ripsaw_files ; do
+    sed -i "s#cloud-bulldozer/${tool_name}:master#$image_account/${tool_name}:$tag_name#" $f
+    sed -i "s#cloud-bulldozer/${tool_name}:latest#$image_account/${tool_name}:$tag_name#" $f
+    echo "checking update to image spec in ripsaw file $f"
+    grep $image_account/${tool_name}:$tag_name $f || exit $NOTOK
+  done
+
+  # ensure that test doesn't run unless container image is up to date
+
+  $SUDO yum install -y skopeo podman buildah
+
+  $SUDO operator-sdk build $image_spec --image-builder podman || exit $NOTOK
+
+  # In case we have issues uploading to quay.io we will retry
+  try_count=0
+  while [ $try_count -lt $img_try_limit ]
+  do
+    $SUDO podman push $image_spec
+    s=$?
+    if [ $s = $OK ] ; then
+        break
+    fi
+    ((try_count++))
+  done
+  if [ $s != $OK ]
+  then
+    skopeo delete docker://$image_spec || exit $NOTOK
+    echo "ERROR Could not upload image $image_spec to repository. Exiting"
+    exit $NOTOK
+  fi
+  skopeo inspect docker://$image_spec
 }
 
 function wait_clean {

@@ -4,15 +4,12 @@ set -x
 
 source ci/common.sh
 
-# Build uperf image for ci
-podman build --tag=quay.io/cloud-bulldozer/uperf:snafu_ci -f uperf-wrapper/Dockerfile . && podman push quay.io/cloud-bulldozer/uperf:snafu_ci
+update_benchmark_image uperf-wrapper uperf
 
 cd ripsaw
 
-sed -i 's/uperf:latest/uperf:snafu_ci/g' roles/uperf-bench/templates/*
-
 # Build new ripsaw image
-update_operator_image snafu_ci
+update_operator_image uperf "`echo roles/uperf-bench/templates/*.yml.j2`"
 
 get_uuid test_uperf.sh
 uuid=`cat uuid`

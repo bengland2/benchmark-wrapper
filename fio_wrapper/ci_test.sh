@@ -5,14 +5,12 @@ set -x
 source ci/common.sh
 
 # Build image for ci
-podman build --tag=quay.io/cloud-bulldozer/fio:snafu_ci -f fio_wrapper/Dockerfile . && podman push quay.io/cloud-bulldozer/fio:snafu_ci
+update_benchmark_image fio_wrapper fio
 
 cd ripsaw
 
-sed -i 's/fio:latest/fio:snafu_ci/g' roles/fio-distributed/templates/*
-
 # Build new ripsaw image
-update_operator_image snafu_ci
+update_operator_image fio "`echo roles/fio-distributed/templates/*.yaml`"
 
 get_uuid test_fiod.sh
 uuid=`cat uuid`

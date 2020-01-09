@@ -4,15 +4,12 @@ set -x
 
 source ci/common.sh
 
-# Build image for ci
-podman build --tag=quay.io/cloud-bulldozer/ycsb-server:snafu_ci -f ycsb-wrapper/Dockerfile . && podman push quay.io/cloud-bulldozer/ycsb-server:snafu_ci
+update_benchmark_image ycsb-wrapper ycsb-server
 
 cd ripsaw
 
-sed -i 's/ycsb-server:latest/ycsb-server:snafu_ci/g' roles/load-ycsb/tasks/main.yml
-
 # Build new ripsaw image
-update_operator_image snafu_ci
+update_operator_image ycsb-server roles/load-ycsb/tasks/main.yml
 
 get_uuid test_ycsb.sh
 uuid=`cat uuid`

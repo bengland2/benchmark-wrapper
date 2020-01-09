@@ -4,15 +4,11 @@ set -x
 
 source ci/common.sh
 
-# Build image for ci
-podman build --tag=quay.io/cloud-bulldozer/hammerdb:snafu_ci -f hammerdb/Dockerfile . && podman push quay.io/cloud-bulldozer/hammerdb:snafu_ci
+update_benchmark_image hammerdb hammerdb
 
 cd ripsaw
 
-sed -i 's/hammerdb:latest/hammerdb:snafu_ci/g' roles/hammerdb/templates/*
-
-# Build new ripsaw image
-update_operator_image snafu_ci
+update_operator_image hammerdb "`echo roles/hammerdb/templates/{db_creation.yml,db_workload.yml.j2}`"
 
 get_uuid test_hammerdb.sh
 uuid=`cat uuid`

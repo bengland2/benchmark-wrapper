@@ -5,14 +5,13 @@ set -x
 source ci/common.sh
 
 # Build image for ci
-podman build --tag=quay.io/cloud-bulldozer/fs-drift:snafu_ci -f fs_drift_wrapper/Dockerfile . && podman push quay.io/cloud-bulldozer/fs-drift:snafu_ci
+
+update_benchmark_image fs_drift_wrapper fs-drift
 
 cd ripsaw
 
-sed -i 's/fs-drift:master/fs-drift:snafu_ci/g' roles/fs-drift/templates/*
-
 # Build new ripsaw image
-update_operator_image snafu_ci
+update_operator_image fs-drift "`echo roles/fs-drift/{tasks/main.yml,templates/workload_job.yml.j2}`"
 
 get_uuid test_fs_drift.sh
 uuid=`cat uuid`
