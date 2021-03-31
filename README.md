@@ -24,6 +24,7 @@ environments, develop in SNAFU and then write benchmark-operator benchmark to in
 | OpenShift Upgrade              | Time to upgrade                | Working            |
 | OpenShift Scaling              | Time to scale                  | Working            |
 | Log Generator                  | Log throughput to backend      | Working            |
+| COSBench                       | S3 (http) object store | under development  |
 
 ## What backend storage do we support?
 
